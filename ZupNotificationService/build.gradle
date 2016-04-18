@@ -22,9 +22,9 @@ uploadArchives{
     repositories{
         mavenDeployer{
             repository(url:"file:///Users/Luiz/TestPushNotificationServices")
-            pom.groupId = "br.com.zup.zupnotificationservice"
-            pom.artifactId = "PushZupNotificationService"
-            pom.version = "0.0.1"
+            pom.groupId = GROUP
+            pom.artifactId = POM_ARTIFACT_ID
+            pom.version = VERSION_NAME
         }
     }
 }

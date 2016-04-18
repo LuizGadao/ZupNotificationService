@@ -4,12 +4,13 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+
+import br.com.zup.zupnotificationservice.exception.ZupNotificationServiceException;
 
 /**
  * Created by Luiz on 11/04/16.
@@ -25,9 +26,10 @@ public class PushZupNotificationService {
 
     protected String mHost;
     protected String mApplicationId;
+    protected String mPushApplicationId;
     protected String mUserId;
+    protected String mDeviceId;
     protected String mToken;
-    protected String mZupApplicationId;
     protected boolean mDebug;
 
     /**
@@ -53,7 +55,7 @@ public class PushZupNotificationService {
      * @param mZupApplicationId for identify your PUSH APPLICATION
      */
     public PushZupNotificationService setPushApplicationId(String mZupApplicationId) {
-        this.mZupApplicationId = mZupApplicationId;
+        this.mPushApplicationId = mZupApplicationId;
         return this;
     }
 
@@ -74,35 +76,66 @@ public class PushZupNotificationService {
      */
     public void subscribe(@NonNull String userId, @NonNull String deviceId,
                           @NonNull String token, @NonNull ResponseCallback callback) {
-        // TODO: 14/04/16 valid fields
         mResponseCallback = callback;
         mUserId = userId;
+        mDeviceId = deviceId;
         mToken = token;
         try {
             JSONObject mParams = new JSONObject();
-            mParams.put(RestZup.APP_ID, mZupApplicationId);
+            mParams.put(RestZup.PUSH_APP_ID, mPushApplicationId);
             mParams.put(RestZup.USER_ID, userId);
             mParams.put(RestZup.DEVICE_ID, deviceId);
             mParams.put(RestZup.TOKEN, token);
             mParams.put(RestZup.PLATFORM, "ANDROID");
-            new ZupTask().execute(mParams);
+            new ZupTask(true).execute(mParams);
         } catch (JSONException e) {
             e.printStackTrace();
         }
     }
 
-    public void unSubscribe(){
-        Log.i("ZNS", "unsubscribe");
+    public void unSubscribe(@NonNull ResponseCallback callback) throws ZupNotificationServiceException {
+        ZNSPreferences mZnsPreferences = ZNSPreferences.newInstance(mContext);
+        if (mZnsPreferences.get(RestZup.PUSH_APP_ID).equals(""))
+            throw new ZupNotificationServiceException("é necessário fazer o subscribe antes de tentar fazer o unsubscribe");
 
+        mResponseCallback = callback;
+        mApplicationId = mZnsPreferences.get(RestZup.X_APP_KEY);
+        mPushApplicationId = mZnsPreferences.get(RestZup.PUSH_APP_ID);
+        mDeviceId = mZnsPreferences.get(RestZup.DEVICE_ID);
+        mUserId = mZnsPreferences.get(RestZup.USER_ID);
+        mHost = mZnsPreferences.get(RestZup.HOST);
+
+        try {
+            JSONObject mParams = new JSONObject();
+            mParams.put(RestZup.PUSH_APP_ID, mPushApplicationId);
+            mParams.put(RestZup.DEVICE_ID, mDeviceId);
+            mParams.put(RestZup.USER_ID, mUserId);
+            mParams.put(RestZup.PLATFORM, "ANDROID");
+            new ZupTask(false).execute(mParams);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
     }
 
     protected class ZupTask extends AsyncTask<JSONObject, Void, RestZup.Reponse>{
+
+        boolean mIsSubscribe;
+
+        public ZupTask(boolean mIsSubscribe) {
+            this.mIsSubscribe = mIsSubscribe;
+        }
 
         @Override
         protected RestZup.Reponse doInBackground(JSONObject... params) {
             JSONObject mParams = params[0];
             try {
-                RestZup.Reponse mResponse = RestZup.subscribe(mParams, mApplicationId, mHost, mDebug);
+                RestZup.Reponse mResponse = null;
+
+                if (mIsSubscribe)
+                    mResponse = RestZup.subscribe(mParams, mApplicationId, mHost, mDebug);
+                else
+                    mResponse = RestZup.unSubscribe(mParams, mApplicationId, mHost, mDebug);
+
                 return mResponse;
             } catch (IOException e) {
                 e.printStackTrace();
@@ -115,16 +148,35 @@ public class PushZupNotificationService {
         @Override
         protected void onPostExecute(RestZup.Reponse reponse) {
             super.onPostExecute(reponse);
-            ZNSPreferences mZnsPreferences = ZNSPreferences.newInstance(mContext);
-            mZnsPreferences.save(RestZup.APP_ID, mZupApplicationId);
-            mZnsPreferences.save(RestZup.X_APP_KEY, mApplicationId);
-            mZnsPreferences.save(RestZup.USER_ID, mUserId);
-            mZnsPreferences.save(RestZup.TOKEN, mToken);
-            mZnsPreferences.save(RestZup.HOST, mHost);
+
+            if (mIsSubscribe == true)
+                saveParams();
+            else
+                deleteParams();
+
             mResponseCallback.callback(reponse);
         }
     }
 
+    private void saveParams(){
+        ZNSPreferences mZnsPreferences = ZNSPreferences.newInstance(mContext);
+        mZnsPreferences.save(RestZup.PUSH_APP_ID, mPushApplicationId);
+        mZnsPreferences.save(RestZup.X_APP_KEY, mApplicationId);
+        mZnsPreferences.save(RestZup.USER_ID, mUserId);
+        mZnsPreferences.save(RestZup.DEVICE_ID, mDeviceId);
+        mZnsPreferences.save(RestZup.TOKEN, mToken);
+        mZnsPreferences.save(RestZup.HOST, mHost);
+    }
+
+    private void deleteParams(){
+        ZNSPreferences mZnsPreferences = ZNSPreferences.newInstance(mContext);
+        mZnsPreferences.delete(RestZup.PUSH_APP_ID);
+        mZnsPreferences.delete(RestZup.X_APP_KEY);
+        mZnsPreferences.delete(RestZup.USER_ID);
+        mZnsPreferences.delete(RestZup.DEVICE_ID);
+        mZnsPreferences.delete(RestZup.TOKEN);
+        mZnsPreferences.delete(RestZup.HOST);
+    }
 
     //****************************************** CALLBACK ******************************************
     public interface ResponseCallback{
@@ -146,13 +198,21 @@ public class PushZupNotificationService {
             return mInstance;
         }
 
-        public void save(String key, String value){
-            Log.i("ZNSPreferences", String.format("key:%s value:%s", key, value));
+        public void save(String mKey, String mValue){
+            //RestZup.log("ZNSPreferences " + String.format("key:%s value:%s", mKey, mValue));
             mSharedPreferences
                     .edit()
-                    .putString(key, value)
+                    .putString(mKey, mValue)
                     .apply();
         }
-    }
 
+        public void delete(String mKey){
+            if (mSharedPreferences.contains(mKey))
+                mSharedPreferences.edit().remove(mKey).apply();
+        }
+
+        public String get(String mKey){
+            return mSharedPreferences.getString(mKey, "");
+        }
+    }
 }

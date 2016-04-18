@@ -11,6 +11,7 @@ import android.widget.Button;
 
 import br.com.zup.zupnotificationservice.PushZupNotificationService;
 import br.com.zup.zupnotificationservice.RestZup;
+import br.com.zup.zupnotificationservice.exception.ZupNotificationServiceException;
 
 /**
  * A placeholder fragment containing a simple view.
@@ -50,7 +51,22 @@ public class MainActivityFragment extends Fragment {
         btUnSubscribe.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                new PushZupNotificationService(getContext()).unSubscribe();
+                PushZupNotificationService pushZupNotificationService = new PushZupNotificationService(getContext())
+                        .setDebug(true);
+
+                try {
+                    pushZupNotificationService.unSubscribe(new PushZupNotificationService.ResponseCallback() {
+                        @Override
+                        public void callback(RestZup.Reponse mResponse) {
+                            if (mResponse.isSuccess())
+                                Log.i(TAG, "UNSUBSCRIBE-SUCCESS");
+                            else
+                                Log.i(TAG, "UNSUBSCRIBE-ERROR: " + mResponse.toString());
+                        }
+                    });
+                } catch (ZupNotificationServiceException e) {
+                    e.printStackTrace();
+                }
             }
         });
     }

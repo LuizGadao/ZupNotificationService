@@ -1,5 +1,6 @@
 package br.com.zup.zupnotificationservice;
 
+import android.support.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -24,23 +25,25 @@ public class RestZup {
     protected static final String USER_ID = "userId";
     protected static final String TOKEN = "token";
     protected static final String PLATFORM = "platform";
-    protected static final String APP_ID = "appId";
+    protected static final String PUSH_APP_ID = "appId";
     protected static final String HOST = "host";
 
     protected static final String X_APP_KEY = "X-Application-Key";
     private static final String SUBSCRIPTIONS = "subscriptions";
 
-    private static final String TAG = PushZupNotificationService.class.getSimpleName();
+    private static final String TAG = "ZupNotificationService";
     private static final int TIME_OUT = 10 * 1000;
 
     public static class Reponse{
+        int mCode;
         private String mMessage;
         private boolean mSuccess;
 
         public Reponse() {
         }
 
-        public Reponse(String mMessage, boolean mSuccess) {
+        public Reponse(int code, String mMessage, boolean mSuccess) {
+            this.mCode = code;
             this.mMessage = mMessage;
             this.mSuccess = mSuccess;
         }
@@ -60,51 +63,72 @@ public class RestZup {
         public void setSuccess(boolean mSuccess) {
             this.mSuccess = mSuccess;
         }
+
+        public int getCode() {
+            return mCode;
+        }
+
+        public void setCode(int mCode) {
+            this.mCode = mCode;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%d - %s", mCode, mMessage);
+        }
     }
 
     private static String getEndpointSubscribe(String host){
         return host + SUBSCRIPTIONS;
     }
 
-    protected static Reponse subscribe(JSONObject jsonParam, String applicationId, String host, boolean debug) throws IOException, JSONException {
-        return post(getEndpointSubscribe(host), jsonParam, applicationId, debug);
+    protected static Reponse subscribe(JSONObject mParams, String mApplicationId, String mHost, boolean mDebug)
+            throws IOException, JSONException {
+        if (mDebug)
+            log("subscribe-payload: " + mParams.toString());
+
+        return getReponse(
+                getHttpUrlConnection(getEndpointSubscribe(mHost), mApplicationId, "POST"),
+                mParams,
+                mDebug);
     }
 
-    private static Reponse post(String urlRequest, JSONObject jsonParam, String applicationId, boolean debug) throws IOException {
+    protected static Reponse unSubscribe(JSONObject mParams, String mApplicationId, String mHost, boolean mDebug)
+            throws IOException, JSONException {
+        if (mDebug)
+            log("unSubscribe-payload: " + mParams.toString());
 
-        if (debug)
-            Log.i(TAG, "subscribe-payload: " + jsonParam.toString());
+        return getReponse(
+                getHttpUrlConnection(getEndpointSubscribe(mHost), mApplicationId, "DELETE"),
+                mParams,
+                mDebug);
+    }
 
-        URL url = new URL(urlRequest);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setDoInput(true);
-        connection.setDoOutput(true);
-        connection.setInstanceFollowRedirects(false);
-        connection.setUseCaches(false);
-        connection.setConnectTimeout(TIME_OUT);
-        connection.setReadTimeout(TIME_OUT);
-        connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-        connection.setRequestProperty(X_APP_KEY, applicationId);
-        connection.setUseCaches(false);
-        connection.setRequestMethod("POST");
-        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
-
-        wr.writeBytes(jsonParam.toString());
-        wr.flush();
-        wr.close();
+    @NonNull
+    private static Reponse getReponse(HttpURLConnection mConnection, JSONObject mParams, boolean mDebug) throws IOException {
+        DataOutputStream outputStream = new DataOutputStream(mConnection.getOutputStream());
+        outputStream.writeBytes(mParams.toString());
+        outputStream.flush();
+        outputStream.close();
 
         Reponse mReponse = new Reponse();
         String output;
-        int httpCode = connection.getResponseCode();
-        if(httpCode == HttpURLConnection.HTTP_OK){
-            output = getOutputString(new BufferedReader(new InputStreamReader(connection.getInputStream(),"utf-8")));
+        int httpCode = mConnection.getResponseCode();
+        mReponse.setCode(httpCode);
+        if (httpCode == HttpURLConnection.HTTP_OK) {
+            output = getOutputString(new BufferedReader(new InputStreamReader(mConnection.getInputStream(),"utf-8")));
+
             if (TextUtils.isEmpty(output))
                 output = SUBSCRIPTIONS + "-success";
-            Log.i(TAG, "" + output);
+
+            if (mDebug) log(output);
+
             mReponse.setSuccess(true);
-        }else{
-            output = getOutputString(new BufferedReader(new InputStreamReader(connection.getErrorStream(),"utf-8")));
-            Log.i(TAG, "error: " + httpCode + " - " + output);
+        } else {
+            output = getOutputString(new BufferedReader(new InputStreamReader(mConnection.getErrorStream(),"utf-8")));
+
+            if (mDebug) log("error: " + httpCode + " - " + output);
+
             mReponse.setSuccess(false);
         }
         mReponse.setMessage(output);
@@ -142,6 +166,10 @@ public class RestZup {
         return connection;
     }
 
+    protected static void log(String mMessage){
+        Log.i(TAG, mMessage);
+    }
+
     public static String bytesToString(InputStream inputStream) throws IOException {
         byte[] buffer = new byte[1024];
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -151,4 +179,6 @@ public class RestZup {
 
         return new String(byteArrayOutputStream.toByteArray(), "UTF-8");
     }
+
+
 }
