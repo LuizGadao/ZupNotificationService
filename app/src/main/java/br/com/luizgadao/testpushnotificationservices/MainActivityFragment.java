@@ -51,29 +51,33 @@ public class MainActivityFragment extends Fragment {
         btUnSubscribe.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                PushZupNotificationService pushZupNotificationService = new PushZupNotificationService(getContext())
-                        .setDebug(true);
-
-                try {
-                    pushZupNotificationService.unSubscribe(new PushZupNotificationService.ResponseCallback() {
-                        @Override
-                        public void callback(RestZup.Reponse mResponse) {
-                            if (mResponse.isSuccess())
-                                Log.i(TAG, "UNSUBSCRIBE-SUCCESS");
-                            else
-                                Log.i(TAG, "UNSUBSCRIBE-ERROR: " + mResponse.toString());
-                        }
-                    });
-                } catch (ZupNotificationServiceException e) {
-                    e.printStackTrace();
-                }
+                unSubscribe();
             }
         });
     }
 
+    private void unSubscribe() {
+        PushZupNotificationService pushZupNotificationService = new PushZupNotificationService(getContext())
+                .setDebug(true);
+
+        try {
+            pushZupNotificationService.unSubscribe(new PushZupNotificationService.ResponseCallback() {
+                @Override
+                public void callback(RestZup.Reponse mResponse) {
+                    if (mResponse.isSuccess())
+                        Log.i(TAG, "UNSUBSCRIBE-SUCCESS");
+                    else
+                        Log.i(TAG, "UNSUBSCRIBE-ERROR: " + mResponse.toString());
+                }
+            });
+        } catch (ZupNotificationServiceException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void subscribe() {
         PushZupNotificationService mZNS = new PushZupNotificationService(getContext())
-                .setApplicationId("d6b61870c79a0133a3fd021e75abe44c")
+                .setApplicationId("f4dc9060e7be0133a5a1021e75abe44c")
                 .setPushApplicationId("2c9f82e1511a711401511c3f06780000")
                 .setHost("https://vivo.dev.gateway.zup.me/push/v1/")
                 .setDebug(true);
@@ -90,6 +94,10 @@ public class MainActivityFragment extends Fragment {
             }
         };
 
-        mZNS.subscribe(userId, deviceid, token, mZNSCallback);
+        try {
+            mZNS.subscribe(userId, deviceid, token, mZNSCallback);
+        } catch (ZupNotificationServiceException e) {
+            e.printStackTrace();
+        }
     }
 }
