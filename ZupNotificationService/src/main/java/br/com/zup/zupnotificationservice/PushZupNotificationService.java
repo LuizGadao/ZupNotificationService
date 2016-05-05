@@ -19,6 +19,8 @@ import br.com.zup.zupnotificationservice.exception.ZupNotificationServiceExcepti
  */
 public class PushZupNotificationService {
 
+
+
     private ResponseCallback mResponseCallback;
     private static Context mContext;
     protected String mHost;
@@ -74,6 +76,8 @@ public class PushZupNotificationService {
      * @param userId for identify who is user your APP
      * @param deviceId for identify the device
      * @param token token that your receive from GooglePlayService reference: https://developers.google.com/cloud-messaging/android/start
+     * @param callback
+     * @throws ZupNotificationServiceException
      */
     public void subscribe(@NonNull String userId, @NonNull String deviceId,
                           @NonNull String token, @NonNull ResponseCallback callback) throws ZupNotificationServiceException {
@@ -90,7 +94,7 @@ public class PushZupNotificationService {
             mParams.put(RestZup.DEVICE_ID, deviceId);
             mParams.put(RestZup.TOKEN, token);
             mParams.put(RestZup.PLATFORM, "ANDROID");
-            new ZupTaskSubscriptions(new Subscribe()).execute(mParams);
+            new ZupTask(new Subscribe()).execute(mParams);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -101,6 +105,11 @@ public class PushZupNotificationService {
             throw new ZupNotificationServiceException("internet disable in device");
     }
 
+    /**
+     * UNSUBSCRIBE
+     * @param callback
+     * @throws ZupNotificationServiceException
+     */
     public void unSubscribe(@NonNull ResponseCallback callback) throws ZupNotificationServiceException {
         ZNSPreferences mZnsPreferences = ZNSPreferences.newInstance(mContext);
         if (mZnsPreferences.get(RestZup.PUSH_APP_ID).equals(""))
@@ -109,11 +118,7 @@ public class PushZupNotificationService {
         checkInternetEnable();
 
         mResponseCallback = callback;
-        mApplicationId = mZnsPreferences.get(RestZup.X_APP_KEY);
-        mPushApplicationId = mZnsPreferences.get(RestZup.PUSH_APP_ID);
-        mDeviceId = mZnsPreferences.get(RestZup.DEVICE_ID);
-        mUserId = mZnsPreferences.get(RestZup.USER_ID);
-        mHost = mZnsPreferences.get(RestZup.HOST);
+        restoreParams(mZnsPreferences);
 
         try {
             JSONObject mParams = new JSONObject();
@@ -121,27 +126,52 @@ public class PushZupNotificationService {
             mParams.put(RestZup.DEVICE_ID, mDeviceId);
             mParams.put(RestZup.USER_ID, mUserId);
             mParams.put(RestZup.PLATFORM, "ANDROID");
-            new ZupTaskSubscriptions(new UnSubscribe()).execute(mParams);
+            new ZupTask(new UnSubscribe()).execute(mParams);
         } catch (JSONException e) {
             e.printStackTrace();
         }
     }
 
-    public void updateStatePush(@NonNull PushStatus status, @NonNull String pushMessageId) throws ZupNotificationServiceException {
+    /**
+     * UPDATE STAUS PUSH NOTIFICATION
+     * @param status
+     * @param pushMessageId
+     * @param callback
+     * @throws ZupNotificationServiceException
+     */
+    public void updateStatePush(@NonNull PushStatus status, @NonNull String pushMessageId, @NonNull ResponseCallback callback) throws ZupNotificationServiceException {
         ZNSPreferences mZnsPreferences = ZNSPreferences.newInstance(mContext);
         if (mZnsPreferences.get(RestZup.PUSH_APP_ID).equals(""))
             throw new ZupNotificationServiceException("é necessário fazer o subscribe antes de tentar fazer o update do status do push");
 
         checkInternetEnable();
+        mResponseCallback = callback;
+        restoreParams(mZnsPreferences);
 
+        try {
+            JSONObject mParams = new JSONObject();
+            mParams.put("status", status);
+            mParams.put("pushMessageId", pushMessageId);
+            new ZupTask(new UpdateStatus()).execute(mParams);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
     }
 
-    private interface Subscriptions {
+    private void restoreParams(ZNSPreferences mZnsPreferences) {
+        mApplicationId = mZnsPreferences.get(RestZup.X_APP_KEY);
+        mPushApplicationId = mZnsPreferences.get(RestZup.PUSH_APP_ID);
+        mDeviceId = mZnsPreferences.get(RestZup.DEVICE_ID);
+        mUserId = mZnsPreferences.get(RestZup.USER_ID);
+        mHost = mZnsPreferences.get(RestZup.HOST);
+    }
+
+    private interface ZNSRequest {
         RestZup.Reponse request(JSONObject mParams);
         void afterRequest();
     }
 
-    private class Subscribe implements Subscriptions {
+    private class Subscribe implements ZNSRequest {
         @Override
         public RestZup.Reponse request(JSONObject mParams) {
             try {
@@ -161,8 +191,7 @@ public class PushZupNotificationService {
         }
     }
 
-    private class UnSubscribe implements Subscriptions {
-
+    private class UnSubscribe implements ZNSRequest {
         @Override
         public RestZup.Reponse request(JSONObject mParams) {
             try {
@@ -181,24 +210,41 @@ public class PushZupNotificationService {
         }
     }
 
-    protected class ZupTaskSubscriptions extends AsyncTask<JSONObject, Void, RestZup.Reponse>{
+    private class UpdateStatus implements ZNSRequest{
+        @Override
+        public RestZup.Reponse request(JSONObject mParams) {
+            try {
+                return RestZup.updateStatus(mParams, mApplicationId, mHost, mDebug);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
 
-        private Subscriptions mSubscription;
-        public ZupTaskSubscriptions(Subscriptions mSubscription) {
-            this.mSubscription = mSubscription;
+        @Override
+        public void afterRequest() {
+
+        }
+    }
+
+    protected class ZupTask extends AsyncTask<JSONObject, Void, RestZup.Reponse>{
+
+        private ZNSRequest mRequest;
+        public ZupTask(ZNSRequest request) {
+            this.mRequest = request;
         }
 
         @Override
         protected RestZup.Reponse doInBackground(JSONObject... params) {
             JSONObject mParams = params[0];
-            RestZup.Reponse mResponse = mSubscription.request(mParams);
+            RestZup.Reponse mResponse = mRequest.request(mParams);
             return mResponse;
         }
 
         @Override
         protected void onPostExecute(RestZup.Reponse reponse) {
             super.onPostExecute(reponse);
-            mSubscription.afterRequest();
+            mRequest.afterRequest();
             mResponseCallback.callback(reponse);
         }
     }
@@ -268,7 +314,7 @@ public class PushZupNotificationService {
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
-    enum PushStatus{
+    public enum PushStatus{
         RECEIVED,
         READ
     }

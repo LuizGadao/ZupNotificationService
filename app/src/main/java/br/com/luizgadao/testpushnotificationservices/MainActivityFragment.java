@@ -40,6 +40,7 @@ public class MainActivityFragment extends Fragment {
 
         Button btSubscribe = (Button) view.findViewById(R.id.btSubscribe);
         Button btUnSubscribe = (Button) view.findViewById(R.id.btUnSubscribe);
+        Button btUpdateStatus = (Button) view.findViewById(R.id.btUpdateStatus);
 
         btSubscribe.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -52,6 +53,13 @@ public class MainActivityFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 unSubscribe();
+            }
+        });
+
+        btUpdateStatus.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                updateStatus(PushZupNotificationService.PushStatus.READ);
             }
         });
     }
@@ -100,4 +108,24 @@ public class MainActivityFragment extends Fragment {
             e.printStackTrace();
         }
     }
+
+
+    private void updateStatus(PushZupNotificationService.PushStatus status){
+        PushZupNotificationService pushZupNotificationService = new PushZupNotificationService(getContext()).setDebug(true);
+
+        PushZupNotificationService.ResponseCallback mZNSCallback = new PushZupNotificationService.ResponseCallback() {
+            @Override
+            public void callback(RestZup.Reponse mResponse) {
+                if (mResponse.isSuccess())
+                    Log.i(TAG, "UPDATE-STATUS-SUCCESS");
+            }
+        };
+
+        try {
+            pushZupNotificationService.updateStatePush(status, "cHVzaF92aXZvX2RlZmF1bHRfMjAxNjA0fEFWUGhraTFIN1EtZUhId2JTVjdE", mZNSCallback);
+        } catch (ZupNotificationServiceException e) {
+            e.printStackTrace();
+        }
+    }
+
 }

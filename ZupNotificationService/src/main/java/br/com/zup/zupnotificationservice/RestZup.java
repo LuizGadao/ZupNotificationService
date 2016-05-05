@@ -30,6 +30,7 @@ public class RestZup {
 
     protected static final String X_APP_KEY = "X-Application-Key";
     private static final String SUBSCRIPTIONS = "subscriptions";
+    private static final String UPDATE_STATUS = "status";
 
     private static final String TAG = "ZupNotificationService";
     private static final int TIME_OUT = 10 * 1000;
@@ -82,6 +83,10 @@ public class RestZup {
         return host + SUBSCRIPTIONS;
     }
 
+    private static String getEndpointUpdateStatus(String host){
+        return host + UPDATE_STATUS;
+    }
+
     protected static Reponse subscribe(JSONObject mParams, String mApplicationId, String mHost, boolean mDebug)
             throws IOException, JSONException {
         if (mDebug)
@@ -100,6 +105,16 @@ public class RestZup {
 
         return getReponse(
                 getHttpUrlConnection(getEndpointSubscribe(mHost), mApplicationId, "DELETE"),
+                mParams,
+                mDebug);
+    }
+
+    public static Reponse updateStatus(JSONObject mParams, String mApplicationId, String mHost, boolean mDebug) throws IOException {
+        if (mDebug)
+            log("update-status: " + mParams.toString());
+
+        return getReponse(
+                getHttpUrlConnection(getEndpointUpdateStatus(mHost), mApplicationId, "PUT"),
                 mParams,
                 mDebug);
     }
