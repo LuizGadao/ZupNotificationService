@@ -85,7 +85,7 @@ public class MainActivityFragment extends Fragment {
 
     private void subscribe() {
         PushZupNotificationService mZNS = new PushZupNotificationService(getContext())
-                .setApplicationId("f4dc9060e7be0133a5a1021e75abe44c")
+                .setApplicationId("d9b5dae004d50134a88a021e75abe44c")
                 .setPushApplicationId("2c9f82e1511a711401511c3f06780000")
                 .setHost("https://vivo.dev.gateway.zup.me/push/v1/")
                 .setDebug(true);
